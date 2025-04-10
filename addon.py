@@ -14,7 +14,7 @@ from bpy.props import StringProperty, IntProperty, BoolProperty, EnumProperty
 bl_info = {
     "name": "Blender MCP",
     "author": "BlenderMCP",
-    "version": (0, 2),
+    "version": (0, 2, 1),  # Updated version number to 0.2.1
     "blender": (3, 0, 0),
     "location": "View3D > Sidebar > BlenderMCP",
     "description": "Connect Blender to Claude via MCP",
@@ -210,6 +210,12 @@ class BlenderMCPServer:
             "set_material": self.set_material,
             "get_polyhaven_status": self.get_polyhaven_status,
             "get_hyper3d_status": self.get_hyper3d_status,
+            # Add new geometry nodes handlers
+            "add_geometry_nodes": self.add_geometry_nodes,
+            "modify_geometry_nodes": self.modify_geometry_nodes,
+            "get_geometry_nodes_info": self.get_geometry_nodes_info,
+            "remove_geometry_nodes": self.remove_geometry_nodes,
+            # Add click position handlers
         }
         
         # Add Polyhaven handlers only if enabled
@@ -1608,6 +1614,561 @@ class BlenderMCPServer:
             return {"succeed": False, "error": str(e)}
     #endregion
 
+    def add_geometry_nodes(self, object_name, modifier_name=None):
+        """Add a Geometry Nodes modifier to an object"""
+        try:
+            # Get the object
+            obj = bpy.data.objects.get(object_name)
+            if not obj:
+                raise ValueError(f"Object not found: {object_name}")
+            
+            # Check if object can have modifiers
+            if not hasattr(obj, 'modifiers'):
+                raise ValueError(f"Object {object_name} cannot have modifiers")
+            
+            # Generate a modifier name if not provided
+            if not modifier_name:
+                modifier_name = f"{object_name}_GeometryNodes"
+            
+            # Check if modifier already exists
+            existing_mod = obj.modifiers.get(modifier_name)
+            if existing_mod:
+                if existing_mod.type == 'NODES':
+                    return {
+                        "message": f"Geometry Nodes modifier '{modifier_name}' already exists on {object_name}",
+                        "modifier_name": modifier_name
+                    }
+                else:
+                    raise ValueError(f"Modifier '{modifier_name}' exists but is not a Geometry Nodes modifier")
+            
+            # Add the Geometry Nodes modifier
+            modifier = obj.modifiers.new(name=modifier_name, type='NODES')
+            
+            # Create a new node group if one doesn't exist
+            if not modifier.node_group:
+                node_group = bpy.data.node_groups.new(f"{modifier_name}_NodeGroup", 'GeometryNodeTree')
+                
+                # Add input and output nodes
+                input_node = node_group.nodes.new('NodeGroupInput')
+                input_node.location = (-200, 0)
+                
+                output_node = node_group.nodes.new('NodeGroupOutput')
+                output_node.location = (200, 0)
+                
+                # Add Geometry input/output interface
+                geometry_in = node_group.interface.new_socket(
+                    name="Geometry",
+                    in_out='INPUT',
+                    socket_type='NodeSocketGeometry'
+                )
+                
+                geometry_out = node_group.interface.new_socket(
+                    name="Geometry",
+                    in_out='OUTPUT',
+                    socket_type='NodeSocketGeometry'
+                )
+                
+                # Link input to output
+                node_group.links.new(input_node.outputs["Geometry"], output_node.inputs["Geometry"])
+                
+                # Assign the node group to the modifier
+                modifier.node_group = node_group
+            
+            return {
+                "message": f"Added Geometry Nodes modifier '{modifier_name}' to {object_name}",
+                "modifier_name": modifier_name,
+                "node_group_name": modifier.node_group.name
+            }
+            
+        except Exception as e:
+            print(f"Error in add_geometry_nodes: {str(e)}")
+            traceback.print_exc()
+            return {"error": str(e)}
+    
+    def modify_geometry_nodes(self, object_name, modifier_name, node_operations=None):
+        """Modify a Geometry Nodes setup on an object"""
+        try:
+            # Get the object
+            obj = bpy.data.objects.get(object_name)
+            if not obj:
+                raise ValueError(f"Object not found: {object_name}")
+            
+            # Get the modifier
+            modifier = obj.modifiers.get(modifier_name)
+            if not modifier:
+                raise ValueError(f"Modifier '{modifier_name}' not found on {object_name}")
+            
+            if modifier.type != 'NODES':
+                raise ValueError(f"Modifier '{modifier_name}' is not a Geometry Nodes modifier")
+            
+            # Get the node group
+            node_group = modifier.node_group
+            if not node_group:
+                raise ValueError(f"Modifier '{modifier_name}' has no node group")
+            
+            # If no operations specified, return current info
+            if not node_operations:
+                return self._get_node_group_info(node_group)
+            
+            # Process node operations
+            results = []
+            for operation in node_operations:
+                op_type = operation.get("type")
+                op_params = operation.get("params", {})
+                
+                if op_type == "add_node":
+                    result = self._add_node_to_group(node_group, **op_params)
+                    results.append({"operation": "add_node", "result": result})
+                
+                elif op_type == "remove_node":
+                    result = self._remove_node_from_group(node_group, **op_params)
+                    results.append({"operation": "remove_node", "result": result})
+                
+                elif op_type == "add_link":
+                    result = self._add_link_to_group(node_group, **op_params)
+                    results.append({"operation": "add_link", "result": result})
+                
+                elif op_type == "remove_link":
+                    result = self._remove_link_from_group(node_group, **op_params)
+                    results.append({"operation": "remove_link", "result": result})
+                
+                elif op_type == "set_node_property":
+                    result = self._set_node_property(node_group, **op_params)
+                    results.append({"operation": "set_node_property", "result": result})
+                
+                elif op_type == "add_group_input":
+                    result = self._add_group_input(node_group, **op_params)
+                    results.append({"operation": "add_group_input", "result": result})
+                
+                elif op_type == "add_group_output":
+                    result = self._add_group_output(node_group, **op_params)
+                    results.append({"operation": "add_group_output", "result": result})
+                
+                else:
+                    results.append({
+                        "operation": op_type,
+                        "result": {"error": f"Unknown operation type: {op_type}"}
+                    })
+            
+            # Return the updated node group info along with operation results
+            node_group_info = self._get_node_group_info(node_group)
+            return {
+                "message": f"Modified Geometry Nodes setup '{modifier_name}' on {object_name}",
+                "operation_results": results,
+                "node_group": node_group_info
+            }
+            
+        except Exception as e:
+            print(f"Error in modify_geometry_nodes: {str(e)}")
+            traceback.print_exc()
+            return {"error": str(e)}
+    
+    def _add_node_to_group(self, node_group, node_type, name=None, location=(0, 0), **properties):
+        """Add a node to a node group"""
+        try:
+            # Create the node
+            node = node_group.nodes.new(node_type)
+            
+            # Set node name if provided
+            if name:
+                node.name = name
+            
+            # Set node location
+            node.location = location
+            
+            # Set additional properties
+            for prop_name, prop_value in properties.items():
+                if hasattr(node, prop_name):
+                    setattr(node, prop_name, prop_value)
+                elif prop_name in node:
+                    node[prop_name] = prop_value
+                elif prop_name == "input_values" and isinstance(prop_value, dict):
+                    # Set input socket values
+                    for socket_name, socket_value in prop_value.items():
+                        if socket_name in node.inputs:
+                            node.inputs[socket_name].default_value = socket_value
+            
+            return {
+                "node_name": node.name,
+                "node_type": node_type,
+                "location": [node.location[0], node.location[1]]
+            }
+            
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def _remove_node_from_group(self, node_group, node_name):
+        """Remove a node from a node group"""
+        try:
+            node = node_group.nodes.get(node_name)
+            if not node:
+                return {"error": f"Node '{node_name}' not found in node group"}
+            
+            # Remove the node
+            node_group.nodes.remove(node)
+            
+            return {"message": f"Removed node '{node_name}' from node group"}
+            
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def _add_link_to_group(self, node_group, from_node, from_socket, to_node, to_socket):
+        """Add a link between nodes in a node group"""
+        try:
+            # Get the nodes
+            from_node_obj = node_group.nodes.get(from_node)
+            to_node_obj = node_group.nodes.get(to_node)
+            
+            if not from_node_obj:
+                return {"error": f"Node '{from_node}' not found in node group"}
+            
+            if not to_node_obj:
+                return {"error": f"Node '{to_node}' not found in node group"}
+            
+            # Get the sockets
+            from_socket_obj = None
+            to_socket_obj = None
+            
+            # Try to get socket by name or index
+            if isinstance(from_socket, str):
+                if from_socket in from_node_obj.outputs:
+                    from_socket_obj = from_node_obj.outputs[from_socket]
+                else:
+                    # Try to find socket by name (case insensitive)
+                    for socket in from_node_obj.outputs:
+                        if socket.name.lower() == from_socket.lower():
+                            from_socket_obj = socket
+                            break
+            elif isinstance(from_socket, int) and 0 <= from_socket < len(from_node_obj.outputs):
+                from_socket_obj = from_node_obj.outputs[from_socket]
+            
+            if isinstance(to_socket, str):
+                if to_socket in to_node_obj.inputs:
+                    to_socket_obj = to_node_obj.inputs[to_socket]
+                else:
+                    # Try to find socket by name (case insensitive)
+                    for socket in to_node_obj.inputs:
+                        if socket.name.lower() == to_socket.lower():
+                            to_socket_obj = socket
+                            break
+            elif isinstance(to_socket, int) and 0 <= to_socket < len(to_node_obj.inputs):
+                to_socket_obj = to_node_obj.inputs[to_socket]
+            
+            if not from_socket_obj:
+                return {"error": f"Output socket '{from_socket}' not found on node '{from_node}'"}
+            
+            if not to_socket_obj:
+                return {"error": f"Input socket '{to_socket}' not found on node '{to_node}'"}
+            
+            # Create the link
+            link = node_group.links.new(from_socket_obj, to_socket_obj)
+            
+            return {
+                "message": f"Added link from {from_node}.{from_socket_obj.name} to {to_node}.{to_socket_obj.name}"
+            }
+            
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def _remove_link_from_group(self, node_group, to_node, to_socket):
+        """Remove links connected to an input socket"""
+        try:
+            # Get the node
+            to_node_obj = node_group.nodes.get(to_node)
+            
+            if not to_node_obj:
+                return {"error": f"Node '{to_node}' not found in node group"}
+            
+            # Get the socket
+            to_socket_obj = None
+            
+            # Try to get socket by name or index
+            if isinstance(to_socket, str):
+                if to_socket in to_node_obj.inputs:
+                    to_socket_obj = to_node_obj.inputs[to_socket]
+                else:
+                    # Try to find socket by name (case insensitive)
+                    for socket in to_node_obj.inputs:
+                        if socket.name.lower() == to_socket.lower():
+                            to_socket_obj = socket
+                            break
+            elif isinstance(to_socket, int) and 0 <= to_socket < len(to_node_obj.inputs):
+                to_socket_obj = to_node_obj.inputs[to_socket]
+            
+            if not to_socket_obj:
+                return {"error": f"Input socket '{to_socket}' not found on node '{to_node}'"}
+            
+            # Remove all links connected to this socket
+            links_removed = 0
+            for link in to_socket_obj.links:
+                node_group.links.remove(link)
+                links_removed += 1
+            
+            return {
+                "message": f"Removed {links_removed} links connected to {to_node}.{to_socket_obj.name}"
+            }
+            
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def _set_node_property(self, node_group, node_name, property_name, property_value):
+        """Set a property on a node"""
+        try:
+            # Get the node
+            node = node_group.nodes.get(node_name)
+            
+            if not node:
+                return {"error": f"Node '{node_name}' not found in node group"}
+            
+            # Handle special case for input socket values
+            if property_name.startswith("inputs."):
+                socket_name = property_name.split(".", 1)[1]
+                if socket_name in node.inputs:
+                    node.inputs[socket_name].default_value = property_value
+                    return {
+                        "message": f"Set input socket '{socket_name}' value on node '{node_name}'"
+                    }
+                else:
+                    return {"error": f"Input socket '{socket_name}' not found on node '{node_name}'"}
+            
+            # Set the property
+            if hasattr(node, property_name):
+                setattr(node, property_name, property_value)
+                return {
+                    "message": f"Set property '{property_name}' on node '{node_name}'"
+                }
+            elif property_name in node:
+                node[property_name] = property_value
+                return {
+                    "message": f"Set custom property '{property_name}' on node '{node_name}'"
+                }
+            else:
+                return {"error": f"Property '{property_name}' not found on node '{node_name}'"}
+            
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def _add_group_input(self, node_group, name, socket_type):
+        """Add an input socket to the node group"""
+        try:
+            # Check if socket already exists
+            for socket in node_group.interface.items_tree:
+                if socket.name == name and socket.in_out == 'INPUT':
+                    return {"error": f"Input socket '{name}' already exists in node group"}
+            
+            # Add the socket
+            socket = node_group.interface.new_socket(
+                name=name,
+                in_out='INPUT',
+                socket_type=socket_type
+            )
+            
+            return {
+                "message": f"Added input socket '{name}' to node group",
+                "socket_name": name,
+                "socket_type": socket_type
+            }
+            
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def _add_group_output(self, node_group, name, socket_type):
+        """Add an output socket to the node group"""
+        try:
+            # Check if socket already exists
+            for socket in node_group.interface.items_tree:
+                if socket.name == name and socket.in_out == 'OUTPUT':
+                    return {"error": f"Output socket '{name}' already exists in node group"}
+            
+            # Add the socket
+            socket = node_group.interface.new_socket(
+                name=name,
+                in_out='OUTPUT',
+                socket_type=socket_type
+            )
+            
+            return {
+                "message": f"Added output socket '{name}' to node group",
+                "socket_name": name,
+                "socket_type": socket_type
+            }
+            
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def get_geometry_nodes_info(self, object_name, modifier_name=None):
+        """Get information about Geometry Nodes modifiers on an object"""
+        try:
+            # Get the object
+            obj = bpy.data.objects.get(object_name)
+            if not obj:
+                raise ValueError(f"Object not found: {object_name}")
+            
+            # If modifier name is provided, get info for that specific modifier
+            if modifier_name:
+                modifier = obj.modifiers.get(modifier_name)
+                if not modifier:
+                    raise ValueError(f"Modifier '{modifier_name}' not found on {object_name}")
+                
+                if modifier.type != 'NODES':
+                    raise ValueError(f"Modifier '{modifier_name}' is not a Geometry Nodes modifier")
+                
+                # Get the node group
+                node_group = modifier.node_group
+                if not node_group:
+                    return {
+                        "modifier_name": modifier_name,
+                        "has_node_group": False
+                    }
+                
+                # Get node group info
+                node_group_info = self._get_node_group_info(node_group)
+                
+                return {
+                    "modifier_name": modifier_name,
+                    "has_node_group": True,
+                    "node_group": node_group_info
+                }
+            
+            # Otherwise, get info for all Geometry Nodes modifiers on the object
+            geometry_modifiers = []
+            
+            for mod in obj.modifiers:
+                if mod.type == 'NODES':
+                    mod_info = {
+                        "name": mod.name,
+                        "has_node_group": mod.node_group is not None
+                    }
+                    
+                    if mod.node_group:
+                        mod_info["node_group_name"] = mod.node_group.name
+                    
+                    geometry_modifiers.append(mod_info)
+            
+            return {
+                "object_name": object_name,
+                "geometry_modifiers": geometry_modifiers,
+                "count": len(geometry_modifiers)
+            }
+            
+        except Exception as e:
+            print(f"Error in get_geometry_nodes_info: {str(e)}")
+            traceback.print_exc()
+            return {"error": str(e)}
+    
+    def _get_node_group_info(self, node_group):
+        """Get detailed information about a node group"""
+        try:
+            # Get basic info
+            info = {
+                "name": node_group.name,
+                "type": node_group.type,
+                "nodes": [],
+                "links": [],
+                "inputs": [],
+                "outputs": []
+            }
+            
+            # Get node info
+            for node in node_group.nodes:
+                node_info = {
+                    "name": node.name,
+                    "type": node.bl_idname,
+                    "location": [node.location[0], node.location[1]],
+                    "inputs": [],
+                    "outputs": []
+                }
+                
+                # Get input socket info
+                for socket in node.inputs:
+                    socket_info = {
+                        "name": socket.name,
+                        "type": socket.bl_idname,
+                        "identifier": socket.identifier
+                    }
+                    
+                    # Add default value if applicable
+                    if hasattr(socket, "default_value"):
+                        if isinstance(socket.default_value, (int, float, bool, str)):
+                            socket_info["default_value"] = socket.default_value
+                        elif hasattr(socket.default_value, "__len__"):
+                            # Handle vector/color values
+                            if len(socket.default_value) <= 16:  # Limit size for large arrays
+                                socket_info["default_value"] = list(socket.default_value)
+                    
+                    node_info["inputs"].append(socket_info)
+                
+                # Get output socket info
+                for socket in node.outputs:
+                    socket_info = {
+                        "name": socket.name,
+                        "type": socket.bl_idname,
+                        "identifier": socket.identifier
+                    }
+                    node_info["outputs"].append(socket_info)
+                
+                info["nodes"].append(node_info)
+            
+            # Get link info
+            for link in node_group.links:
+                link_info = {
+                    "from_node": link.from_node.name,
+                    "from_socket": link.from_socket.name,
+                    "to_node": link.to_node.name,
+                    "to_socket": link.to_socket.name
+                }
+                info["links"].append(link_info)
+            
+            # Get group input/output info
+            for socket in node_group.interface.items_tree:
+                socket_info = {
+                    "name": socket.name,
+                    "type": socket.socket_type,
+                    "in_out": socket.in_out
+                }
+                
+                if socket.in_out == 'INPUT':
+                    info["inputs"].append(socket_info)
+                else:
+                    info["outputs"].append(socket_info)
+            
+            return info
+            
+        except Exception as e:
+            print(f"Error getting node group info: {str(e)}")
+            return {"error": str(e)}
+    
+    def remove_geometry_nodes(self, object_name, modifier_name):
+        """Remove a Geometry Nodes modifier from an object"""
+        try:
+            # Get the object
+            obj = bpy.data.objects.get(object_name)
+            if not obj:
+                raise ValueError(f"Object not found: {object_name}")
+            
+            # Get the modifier
+            modifier = obj.modifiers.get(modifier_name)
+            if not modifier:
+                raise ValueError(f"Modifier '{modifier_name}' not found on {object_name}")
+            
+            if modifier.type != 'NODES':
+                raise ValueError(f"Modifier '{modifier_name}' is not a Geometry Nodes modifier")
+            
+            # Store node group name for reporting
+            node_group_name = modifier.node_group.name if modifier.node_group else None
+            
+            # Remove the modifier
+            obj.modifiers.remove(modifier)
+            
+            return {
+                "message": f"Removed Geometry Nodes modifier '{modifier_name}' from {object_name}",
+                "removed_node_group": node_group_name
+            }
+            
+        except Exception as e:
+            print(f"Error in remove_geometry_nodes: {str(e)}")
+            traceback.print_exc()
+            return {"error": str(e)}
 # Blender UI Panel
 class BLENDERMCP_PT_Panel(bpy.types.Panel):
     bl_label = "Blender MCP"
@@ -1619,6 +2180,11 @@ class BLENDERMCP_PT_Panel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         scene = context.scene
+        
+        # Add version indicator at the top of the panel
+        version_box = layout.box()
+        version_row = version_box.row()
+        version_row.label(text=f"MCP v2.4 - Geometry Nodes + Mouse Click Support", icon='NODETREE')
         
         layout.prop(scene, "blendermcp_port")
         layout.prop(scene, "blendermcp_use_polyhaven", text="Use assets from Poly Haven")

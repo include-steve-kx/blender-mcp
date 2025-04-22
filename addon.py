@@ -24,7 +24,7 @@ bl_info = {
 RODIN_FREE_TRIAL_KEY = "k9TcfFoEhNd9cCPP2guHAHHHkctZHIRhZDywZ1euGUXwihbYLpOjQhofby80NJez"
 
 class BlenderMCPServer:
-    def __init__(self, host='localhost', port=9876):
+    def __init__(self, host='localhost', port=9877):
         self.host = host
         self.port = port
         self.running = False
@@ -2254,7 +2254,7 @@ def register():
     bpy.types.Scene.blendermcp_port = IntProperty(
         name="Port",
         description="Port for the BlenderMCP server",
-        default=9876,
+        default=9877,
         min=1024,
         max=65535
     )

@@ -225,7 +225,7 @@ def get_blender_connection():
     
     # Create a new connection if needed
     if _blender_connection is None:
-        _blender_connection = BlenderConnection(host="localhost", port=9876)
+        _blender_connection = BlenderConnection(host="localhost", port=9877)
         if not _blender_connection.connect():
             logger.error("Failed to connect to Blender")
             _blender_connection = None

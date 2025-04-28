@@ -210,7 +210,7 @@ def get_blender_connection():
     if _blender_connection is not None:
         try:
             # First check if PolyHaven is enabled by sending a ping command
-            result = _blender_connection.send_command("get_polyhaven_status")
+            result = _blender_connection.send_command("blender_get_polyhaven_status")
             # Store the PolyHaven status globally
             _polyhaven_enabled = result.get("enabled", False)
             return _blender_connection
@@ -236,11 +236,11 @@ def get_blender_connection():
 
 
 @mcp.tool()
-def get_scene_info(ctx: Context) -> str:
+def get_blender_scene_info(ctx: Context) -> str:
     """Get detailed information about the current Blender scene"""
     try:
         blender = get_blender_connection()
-        result = blender.send_command("get_scene_info")
+        result = blender.send_command("get_blender_scene_info")
         
         # Just return the JSON representation of what Blender sent us
         return json.dumps(result, indent=2)
@@ -249,7 +249,7 @@ def get_scene_info(ctx: Context) -> str:
         return f"Error getting scene info: {str(e)}"
 
 @mcp.tool()
-def get_object_info(ctx: Context, object_name: str) -> str:
+def get_blender_object_info(ctx: Context, object_name: str) -> str:
     """
     Get detailed information about a specific object in the Blender scene.
     
@@ -258,7 +258,7 @@ def get_object_info(ctx: Context, object_name: str) -> str:
     """
     try:
         blender = get_blender_connection()
-        result = blender.send_command("get_object_info", {"name": object_name})
+        result = blender.send_command("get_blender_object_info", {"name": object_name})
         
         # Just return the JSON representation of what Blender sent us
         return json.dumps(result, indent=2)
@@ -269,7 +269,7 @@ def get_object_info(ctx: Context, object_name: str) -> str:
 
 
 @mcp.tool()
-def create_object(
+def blender_create_object(
     ctx: Context,
     type: str = "CUBE",
     name: str = None,
@@ -342,12 +342,12 @@ def create_object(
                 "abso_minor_rad": abso_minor_rad,
                 "generate_uvs": generate_uvs
             })
-            result = blender.send_command("create_object", params)
+            result = blender.send_command("blender_create_object", params)
             return f"Created {type} object: {result['name']}"
         else:
             # For non-torus objects, include scale
             params["scale"] = sc
-            result = blender.send_command("create_object", params)
+            result = blender.send_command("blender_create_object", params)
             return f"Created {type} object: {result['name']}"
     except Exception as e:
         logger.error(f"Error creating object: {str(e)}")
@@ -355,7 +355,7 @@ def create_object(
 
 
 @mcp.tool()
-def modify_object(
+def blender_modify_object(
     ctx: Context,
     name: str,
     location: List[float] = None,
@@ -388,14 +388,14 @@ def modify_object(
         if visible is not None:
             params["visible"] = visible
             
-        result = blender.send_command("modify_object", params)
+        result = blender.send_command("blender_modify_object", params)
         return f"Modified object: {result['name']}"
     except Exception as e:
         logger.error(f"Error modifying object: {str(e)}")
         return f"Error modifying object: {str(e)}"
 
 @mcp.tool()
-def delete_object(ctx: Context, name: str) -> str:
+def blender_delete_object(ctx: Context, name: str) -> str:
     """
     Delete an object from the Blender scene.
     
@@ -406,14 +406,14 @@ def delete_object(ctx: Context, name: str) -> str:
         # Get the global connection
         blender = get_blender_connection()
         
-        result = blender.send_command("delete_object", {"name": name})
+        result = blender.send_command("blender_delete_object", {"name": name})
         return f"Deleted object: {name}"
     except Exception as e:
         logger.error(f"Error deleting object: {str(e)}")
         return f"Error deleting object: {str(e)}"
 
 @mcp.tool()
-def set_material(
+def blender_set_material(
     ctx: Context,
     object_name: str,
     material_name: str = None,
@@ -438,7 +438,7 @@ def set_material(
         if color:
             params["color"] = color
             
-        result = blender.send_command("set_material", params)
+        result = blender.send_command("blender_set_material", params)
         return f"Applied material to {object_name}: {result.get('material_name', 'unknown')}"
     except Exception as e:
         logger.error(f"Error setting material: {str(e)}")
@@ -456,14 +456,14 @@ def execute_blender_code(ctx: Context, code: str) -> str:
         # Get the global connection
         blender = get_blender_connection()
         
-        result = blender.send_command("execute_code", {"code": code})
+        result = blender.send_command("blender_execute_code", {"code": code})
         return f"Code executed successfully: {result.get('result', '')}"
     except Exception as e:
         logger.error(f"Error executing code: {str(e)}")
         return f"Error executing code: {str(e)}"
 
 @mcp.tool()
-def get_polyhaven_categories(ctx: Context, asset_type: str = "hdris") -> str:
+def blender_get_polyhaven_categories(ctx: Context, asset_type: str = "hdris") -> str:
     """
     Get a list of categories for a specific asset type on Polyhaven.
     
@@ -474,7 +474,7 @@ def get_polyhaven_categories(ctx: Context, asset_type: str = "hdris") -> str:
         blender = get_blender_connection()
         if not _polyhaven_enabled:
             return "PolyHaven integration is disabled. Select it in the sidebar in BlenderMCP, then run it again."
-        result = blender.send_command("get_polyhaven_categories", {"asset_type": asset_type})
+        result = blender.send_command("blender_get_polyhaven_categories", {"asset_type": asset_type})
         
         if "error" in result:
             return f"Error: {result['error']}"
@@ -495,7 +495,7 @@ def get_polyhaven_categories(ctx: Context, asset_type: str = "hdris") -> str:
         return f"Error getting Polyhaven categories: {str(e)}"
 
 @mcp.tool()
-def search_polyhaven_assets(
+def blender_search_polyhaven_assets(
     ctx: Context,
     asset_type: str = "all",
     categories: str = None
@@ -511,7 +511,7 @@ def search_polyhaven_assets(
     """
     try:
         blender = get_blender_connection()
-        result = blender.send_command("search_polyhaven_assets", {
+        result = blender.send_command("blender_search_polyhaven_assets", {
             "asset_type": asset_type,
             "categories": categories
         })
@@ -544,7 +544,7 @@ def search_polyhaven_assets(
         return f"Error searching Polyhaven assets: {str(e)}"
 
 @mcp.tool()
-def download_polyhaven_asset(
+def blender_download_polyhaven_asset(
     ctx: Context,
     asset_id: str,
     asset_type: str,
@@ -564,7 +564,7 @@ def download_polyhaven_asset(
     """
     try:
         blender = get_blender_connection()
-        result = blender.send_command("download_polyhaven_asset", {
+        result = blender.send_command("blender_download_polyhaven_asset", {
             "asset_id": asset_id,
             "asset_type": asset_type,
             "resolution": resolution,
@@ -595,7 +595,7 @@ def download_polyhaven_asset(
         return f"Error downloading Polyhaven asset: {str(e)}"
 
 @mcp.tool()
-def set_texture(
+def blender_set_texture(
     ctx: Context,
     object_name: str,
     texture_id: str
@@ -613,7 +613,7 @@ def set_texture(
         # Get the global connection
         blender = get_blender_connection()
         
-        result = blender.send_command("set_texture", {
+        result = blender.send_command("blender_set_texture", {
             "object_name": object_name,
             "texture_id": texture_id
         })
@@ -655,14 +655,14 @@ def set_texture(
         return f"Error applying texture: {str(e)}"
 
 @mcp.tool()
-def get_polyhaven_status(ctx: Context) -> str:
+def blender_get_polyhaven_status(ctx: Context) -> str:
     """
     Check if PolyHaven integration is enabled in Blender.
     Returns a message indicating whether PolyHaven features are available.
     """
     try:
         blender = get_blender_connection()
-        result = blender.send_command("get_polyhaven_status")
+        result = blender.send_command("blender_get_polyhaven_status")
         enabled = result.get("enabled", False)
         message = result.get("message", "")
         
@@ -672,7 +672,7 @@ def get_polyhaven_status(ctx: Context) -> str:
         return f"Error checking PolyHaven status: {str(e)}"
 
 @mcp.tool()
-def get_hyper3d_status(ctx: Context) -> str:
+def blender_get_hyper3d_status(ctx: Context) -> str:
     """
     Check if Hyper3D Rodin integration is enabled in Blender.
     Returns a message indicating whether Hyper3D Rodin features are available.
@@ -681,7 +681,7 @@ def get_hyper3d_status(ctx: Context) -> str:
     """
     try:
         blender = get_blender_connection()
-        result = blender.send_command("get_hyper3d_status")
+        result = blender.send_command("blender_get_hyper3d_status")
         enabled = result.get("enabled", False)
         message = result.get("message", "")
         if enabled:
@@ -719,7 +719,7 @@ def generate_hyper3d_model_via_text(
     """
     try:
         blender = get_blender_connection()
-        result = blender.send_command("create_rodin_job", {
+        result = blender.send_command("blender_create_rodin_job", {
             "text_prompt": text_prompt,
             "images": None,
             "bbox_condition": _process_bbox(bbox_condition),
@@ -775,7 +775,7 @@ def generate_hyper3d_model_via_images(
         images = input_image_urls.copy()
     try:
         blender = get_blender_connection()
-        result = blender.send_command("create_rodin_job", {
+        result = blender.send_command("blender_create_rodin_job", {
             "text_prompt": None,
             "images": images,
             "bbox_condition": _process_bbox(bbox_condition),
@@ -793,7 +793,7 @@ def generate_hyper3d_model_via_images(
         return f"Error generating Hyper3D task: {str(e)}"
 
 @mcp.tool()
-def poll_rodin_job_status(
+def blender_poll_rodin_job_status(
     ctx: Context,
     subscription_key: str=None,
     request_id: str=None,
@@ -829,14 +829,14 @@ def poll_rodin_job_status(
             kwargs = {
                 "request_id": request_id,
             }
-        result = blender.send_command("poll_rodin_job_status", kwargs)
+        result = blender.send_command("blender_poll_rodin_job_status", kwargs)
         return result
     except Exception as e:
         logger.error(f"Error generating Hyper3D task: {str(e)}")
         return f"Error generating Hyper3D task: {str(e)}"
 
 @mcp.tool()
-def import_generated_asset(
+def blender_import_generated_asset(
     ctx: Context,
     name: str,
     task_uuid: str=None,
@@ -862,14 +862,14 @@ def import_generated_asset(
             kwargs["task_uuid"] = task_uuid
         elif request_id:
             kwargs["request_id"] = request_id
-        result = blender.send_command("import_generated_asset", kwargs)
+        result = blender.send_command("blender_import_generated_asset", kwargs)
         return result
     except Exception as e:
         logger.error(f"Error generating Hyper3D task: {str(e)}")
         return f"Error generating Hyper3D task: {str(e)}"
 
 @mcp.tool()
-def add_geometry_nodes(ctx: Context, object_name: str, modifier_name: str = None) -> str:
+def add_blender_geometry_nodes(ctx: Context, object_name: str, modifier_name: str = None) -> str:
     """
     Add a Geometry Nodes modifier to an object in Blender.
     
@@ -879,7 +879,7 @@ def add_geometry_nodes(ctx: Context, object_name: str, modifier_name: str = None
     """
     try:
         blender = get_blender_connection()
-        result = blender.send_command("add_geometry_nodes", {
+        result = blender.send_command("add_blender_geometry_nodes", {
             "object_name": object_name,
             "modifier_name": modifier_name
         })
@@ -893,7 +893,7 @@ def add_geometry_nodes(ctx: Context, object_name: str, modifier_name: str = None
         return f"Error adding Geometry Nodes: {str(e)}"
 
 @mcp.tool()
-def modify_geometry_nodes(ctx: Context, object_name: str, modifier_name: str, operations: list) -> str:
+def modify_blender_geometry_nodes(ctx: Context, object_name: str, modifier_name: str, operations: list) -> str:
     """
     Modify a Geometry Nodes setup on an object.
     
@@ -909,7 +909,7 @@ def modify_geometry_nodes(ctx: Context, object_name: str, modifier_name: str, op
     """
     try:
         blender = get_blender_connection()
-        result = blender.send_command("modify_geometry_nodes", {
+        result = blender.send_command("modify_blender_geometry_nodes", {
             "object_name": object_name,
             "modifier_name": modifier_name,
             "node_operations": operations
@@ -924,7 +924,7 @@ def modify_geometry_nodes(ctx: Context, object_name: str, modifier_name: str, op
         return f"Error modifying Geometry Nodes: {str(e)}"
 
 @mcp.tool()
-def get_geometry_nodes_info(ctx: Context, object_name: str, modifier_name: str = None) -> str:
+def get_blender_geometry_nodes_info(ctx: Context, object_name: str, modifier_name: str = None) -> str:
     """
     Get information about Geometry Nodes modifiers on an object.
     
@@ -934,7 +934,7 @@ def get_geometry_nodes_info(ctx: Context, object_name: str, modifier_name: str =
     """
     try:
         blender = get_blender_connection()
-        result = blender.send_command("get_geometry_nodes_info", {
+        result = blender.send_command("get_blender_geometry_nodes_info", {
             "object_name": object_name,
             "modifier_name": modifier_name
         })
@@ -948,7 +948,7 @@ def get_geometry_nodes_info(ctx: Context, object_name: str, modifier_name: str =
         return f"Error getting Geometry Nodes info: {str(e)}"
 
 @mcp.tool()
-def remove_geometry_nodes(ctx: Context, object_name: str, modifier_name: str) -> str:
+def remove_blender_geometry_nodes(ctx: Context, object_name: str, modifier_name: str) -> str:
     """
     Remove a Geometry Nodes modifier from an object.
     
@@ -958,7 +958,7 @@ def remove_geometry_nodes(ctx: Context, object_name: str, modifier_name: str) ->
     """
     try:
         blender = get_blender_connection()
-        result = blender.send_command("remove_geometry_nodes", {
+        result = blender.send_command("remove_blender_geometry_nodes", {
             "object_name": object_name,
             "modifier_name": modifier_name
         })
@@ -976,14 +976,14 @@ def asset_creation_strategy() -> str:
     """Defines the preferred strategy for creating assets in Blender"""
     return """When creating 3D content in Blender, always start by checking if integrations are available:
 
-    0. Before anything, always check the scene from get_scene_info()
+    0. Before anything, always check the scene from get_blender_scene_info()
     1. First use the following tools to verify if the following integrations are enabled:
         1. PolyHaven
-            Use get_polyhaven_status() to verify its status
+            Use blender_get_polyhaven_status() to verify its status
             If PolyHaven is enabled:
-            - For objects/models: Use download_polyhaven_asset() with asset_type="models"
-            - For materials/textures: Use download_polyhaven_asset() with asset_type="textures"
-            - For environment lighting: Use download_polyhaven_asset() with asset_type="hdris"
+            - For objects/models: Use blender_download_polyhaven_asset() with asset_type="models"
+            - For materials/textures: Use blender_download_polyhaven_asset() with asset_type="textures"
+            - For environment lighting: Use blender_download_polyhaven_asset() with asset_type="hdris"
         2. Hyper3D(Rodin)
             Hyper3D Rodin is good at generating 3D models for single item.
             So don't try to:
@@ -991,7 +991,7 @@ def asset_creation_strategy() -> str:
             2. Generate ground using Rodin
             3. Generate parts of the items separately and put them together afterwards
 
-            Use get_hyper3d_status() to verify its status
+            Use blender_get_hyper3d_status() to verify its status
             If Hyper3D is enabled:
             - For objects/models, do the following steps:
                 1. Create the model generation task
@@ -1002,9 +1002,9 @@ def asset_creation_strategy() -> str:
                     - Go to hyper3d.ai to find out how to get their own API key
                     - Go to fal.ai to get their own private API key
                 2. Poll the status
-                    - Use poll_rodin_job_status() to check if the generation task has completed or failed
+                    - Use blender_poll_rodin_job_status() to check if the generation task has completed or failed
                 3. Import the asset
-                    - Use import_generated_asset() to import the generated GLB model the asset
+                    - Use blender_import_generated_asset() to import the generated GLB model the asset
                 4. After importing the asset, ALWAYS check the world_bounding_box of the imported mesh, and adjust the mesh's location and size
                     Adjust the imported mesh's location, scale, rotation, so that the mesh is on the right spot.
 
@@ -1012,13 +1012,13 @@ def asset_creation_strategy() -> str:
         
         3. Geometry Nodes (v2.1+)
             Geometry Nodes allow for procedural modeling and effects:
-            - Use add_geometry_nodes() to add a Geometry Nodes modifier to an object
-            - Use modify_geometry_nodes() to build node networks with operations like:
+            - Use add_blender_geometry_nodes() to add a Geometry Nodes modifier to an object
+            - Use modify_blender_geometry_nodes() to build node networks with operations like:
                 - Adding nodes (mesh primitives, transforms, etc.)
                 - Creating links between nodes
                 - Setting node properties
-            - Use get_geometry_nodes_info() to inspect existing node setups
-            - Use remove_geometry_nodes() to remove a Geometry Nodes modifier
+            - Use get_blender_geometry_nodes_info() to inspect existing node setups
+            - Use remove_blender_geometry_nodes() to remove a Geometry Nodes modifier
             
             Common geometry node workflows:
             - Creating procedural arrays of objects
@@ -1027,8 +1027,8 @@ def asset_creation_strategy() -> str:
             - Creating instances along curves or on surfaces
         
     2. If all integrations are disabled or when falling back to basic tools:
-       - create_object() for basic primitives (CUBE, SPHERE, CYLINDER, etc.)
-       - set_material() for basic colors and materials
+       - blender_create_object() for basic primitives (CUBE, SPHERE, CYLINDER, etc.)
+       - blender_set_material() for basic colors and materials
     
     3. When including an object into scene, ALWAYS make sure that the name of the object is meaningful.
 
@@ -1036,8 +1036,8 @@ def asset_creation_strategy() -> str:
         - Ensure that all objects that should not be clipping are not clipping.
         - Items have right spatial relationship.
     
-    5. After giving the tool location/scale/rotation information (via create_object() and modify_object()),
-       double check the related object's location, scale, rotation, and world_bounding_box using get_object_info(),
+    5. After giving the tool location/scale/rotation information (via blender_create_object() and blender_modify_object()),
+       double check the related object's location, scale, rotation, and world_bounding_box using get_blender_object_info(),
        so that the object is in the desired location.
 
     Only fall back to basic creation tools when:

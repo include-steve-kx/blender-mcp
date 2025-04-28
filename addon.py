@@ -177,7 +177,7 @@ class BlenderMCPServer:
             params = command.get("params", {})
             
             # Ensure we're in the right context
-            if cmd_type in ["create_object", "modify_object", "delete_object"]:
+            if cmd_type in ["blender_create_object", "blender_modify_object", "blender_delete_object"]:
                 override = bpy.context.copy()
                 override['area'] = [area for area in bpy.context.screen.areas if area.type == 'VIEW_3D'][0]
                 with bpy.context.temp_override(**override):
@@ -196,44 +196,44 @@ class BlenderMCPServer:
         params = command.get("params", {})
 
         # Add a handler for checking PolyHaven status
-        if cmd_type == "get_polyhaven_status":
-            return {"status": "success", "result": self.get_polyhaven_status()}
+        if cmd_type == "blender_get_polyhaven_status":
+            return {"status": "success", "result": self.blender_get_polyhaven_status()}
         
         # Base handlers that are always available
         handlers = {
-            "get_scene_info": self.get_scene_info,
-            "create_object": self.create_object,
-            "modify_object": self.modify_object,
-            "delete_object": self.delete_object,
-            "get_object_info": self.get_object_info,
-            "execute_code": self.execute_code,
-            "set_material": self.set_material,
-            "get_polyhaven_status": self.get_polyhaven_status,
-            "get_hyper3d_status": self.get_hyper3d_status,
+            "get_blender_scene_info": self.get_blender_scene_info,
+            "blender_create_object": self.blender_create_object,
+            "blender_modify_object": self.blender_modify_object,
+            "blender_delete_object": self.blender_delete_object,
+            "get_blender_object_info": self.get_blender_object_info,
+            "blender_execute_code": self.blender_execute_code,
+            "blender_set_material": self.blender_set_material,
+            "blender_get_polyhaven_status": self.blender_get_polyhaven_status,
+            "blender_get_hyper3d_status": self.blender_get_hyper3d_status,
             # Add new geometry nodes handlers
-            "add_geometry_nodes": self.add_geometry_nodes,
-            "modify_geometry_nodes": self.modify_geometry_nodes,
-            "get_geometry_nodes_info": self.get_geometry_nodes_info,
-            "remove_geometry_nodes": self.remove_geometry_nodes,
+            "add_blender_geometry_nodes": self.add_blender_geometry_nodes,
+            "modify_blender_geometry_nodes": self.modify_blender_geometry_nodes,
+            "get_blender_geometry_nodes_info": self.get_blender_geometry_nodes_info,
+            "remove_blender_geometry_nodes": self.remove_blender_geometry_nodes,
             # Add click position handlers
         }
         
         # Add Polyhaven handlers only if enabled
         if bpy.context.scene.blendermcp_use_polyhaven:
             polyhaven_handlers = {
-                "get_polyhaven_categories": self.get_polyhaven_categories,
-                "search_polyhaven_assets": self.search_polyhaven_assets,
-                "download_polyhaven_asset": self.download_polyhaven_asset,
-                "set_texture": self.set_texture,
+                "blender_get_polyhaven_categories": self.blender_get_polyhaven_categories,
+                "blender_search_polyhaven_assets": self.blender_search_polyhaven_assets,
+                "blender_download_polyhaven_asset": self.blender_download_polyhaven_asset,
+                "blender_set_texture": self.blender_set_texture,
             }
             handlers.update(polyhaven_handlers)
         
         # Add Hyper3d handlers only if enabled
         if bpy.context.scene.blendermcp_use_hyper3d:
             polyhaven_handlers = {
-                "create_rodin_job": self.create_rodin_job,
-                "poll_rodin_job_status": self.poll_rodin_job_status,
-                "import_generated_asset": self.import_generated_asset,
+                "blender_create_rodin_job": self.blender_create_rodin_job,
+                "blender_poll_rodin_job_status": self.blender_poll_rodin_job_status,
+                "blender_import_generated_asset": self.blender_import_generated_asset,
             }
             handlers.update(polyhaven_handlers)
 
@@ -260,7 +260,7 @@ class BlenderMCPServer:
             "object_count": len(bpy.context.scene.objects)
         }
     
-    def get_scene_info(self):
+    def get_blender_scene_info(self):
         """Get information about the current Blender scene"""
         try:
             print("Getting scene info...")
@@ -274,7 +274,7 @@ class BlenderMCPServer:
             
             # Collect minimal object information (limit to first 10 objects)
             for i, obj in enumerate(bpy.context.scene.objects):
-                if i >= 10:  # Reduced from 20 to 10
+                if i >= 50:  # Reduced from 20 to 10
                     break
                     
                 obj_info = {
@@ -290,7 +290,7 @@ class BlenderMCPServer:
             print(f"Scene info collected: {len(scene_info['objects'])} objects")
             return scene_info
         except Exception as e:
-            print(f"Error in get_scene_info: {str(e)}")
+            print(f"Error in get_blender_scene_info: {str(e)}")
             traceback.print_exc()
             return {"error": str(e)}
     
@@ -314,7 +314,7 @@ class BlenderMCPServer:
             [*min_corner], [*max_corner]
         ]
 
-    def create_object(self, type="CUBE", name=None, location=(0, 0, 0), rotation=(0, 0, 0), scale=(1, 1, 1),
+    def blender_create_object(self, type="CUBE", name=None, location=(0, 0, 0), rotation=(0, 0, 0), scale=(1, 1, 1),
                     align="WORLD", major_segments=48, minor_segments=12, mode="MAJOR_MINOR",
                     major_radius=1.0, minor_radius=0.25, abso_major_rad=1.25, abso_minor_rad=0.75, generate_uvs=True):
         """Create a new object in the scene"""
@@ -394,11 +394,11 @@ class BlenderMCPServer:
             
             return result
         except Exception as e:
-            print(f"Error in create_object: {str(e)}")
+            print(f"Error in blender_create_object: {str(e)}")
             traceback.print_exc()
             return {"error": str(e)}
 
-    def modify_object(self, name, location=None, rotation=None, scale=None, visible=None):
+    def blender_modify_object(self, name, location=None, rotation=None, scale=None, visible=None):
         """Modify an existing object in the scene"""
         # Find the object by name
         obj = bpy.data.objects.get(name)
@@ -434,7 +434,7 @@ class BlenderMCPServer:
 
         return result
 
-    def delete_object(self, name):
+    def blender_delete_object(self, name):
         """Delete an object from the scene"""
         obj = bpy.data.objects.get(name)
         if not obj:
@@ -449,7 +449,7 @@ class BlenderMCPServer:
         
         return {"deleted": obj_name}
     
-    def get_object_info(self, name):
+    def get_blender_object_info(self, name):
         """Get detailed information about a specific object"""
         obj = bpy.data.objects.get(name)
         if not obj:
@@ -486,7 +486,7 @@ class BlenderMCPServer:
         
         return obj_info
     
-    def execute_code(self, code):
+    def blender_execute_code(self, code):
         """Execute arbitrary Blender Python code"""
         # This is powerful but potentially dangerous - use with caution
         try:
@@ -497,7 +497,7 @@ class BlenderMCPServer:
         except Exception as e:
             raise Exception(f"Code execution error: {str(e)}")
     
-    def set_material(self, object_name, material_name=None, create_if_missing=True, color=None):
+    def blender_set_material(self, object_name, material_name=None, create_if_missing=True, color=None):
         """Set or create a material for an object"""
         try:
             # Get the object
@@ -571,7 +571,7 @@ class BlenderMCPServer:
                 raise ValueError(f"Failed to create or find material: {material_name}")
             
         except Exception as e:
-            print(f"Error in set_material: {str(e)}")
+            print(f"Error in blender_set_material: {str(e)}")
             traceback.print_exc()
             return {
                 "status": "error",
@@ -600,7 +600,7 @@ class BlenderMCPServer:
             "resolution": [bpy.context.scene.render.resolution_x, bpy.context.scene.render.resolution_y],
         }
 
-    def get_polyhaven_categories(self, asset_type):
+    def blender_get_polyhaven_categories(self, asset_type):
         """Get categories for a specific asset type from Polyhaven"""
         try:
             if asset_type not in ["hdris", "textures", "models", "all"]:
@@ -614,7 +614,7 @@ class BlenderMCPServer:
         except Exception as e:
             return {"error": str(e)}
     
-    def search_polyhaven_assets(self, asset_type=None, categories=None):
+    def blender_search_polyhaven_assets(self, asset_type=None, categories=None):
         """Search for assets from Polyhaven with optional filtering"""
         try:
             url = "https://api.polyhaven.com/assets"
@@ -645,7 +645,7 @@ class BlenderMCPServer:
         except Exception as e:
             return {"error": str(e)}
     
-    def download_polyhaven_asset(self, asset_id, asset_type, resolution="1k", file_format=None):
+    def blender_download_polyhaven_asset(self, asset_id, asset_type, resolution="1k", file_format=None):
         try:
             # First get the files information
             files_response = requests.get(f"https://api.polyhaven.com/files/{asset_id}")
@@ -970,7 +970,7 @@ class BlenderMCPServer:
         except Exception as e:
             return {"error": f"Failed to download asset: {str(e)}"}
 
-    def set_texture(self, object_name, texture_id):
+    def blender_set_texture(self, object_name, texture_id):
         """Apply a previously downloaded Polyhaven texture to an object by creating a new material"""
         try:
             # Get the object
@@ -1270,11 +1270,11 @@ class BlenderMCPServer:
             }
             
         except Exception as e:
-            print(f"Error in set_texture: {str(e)}")
+            print(f"Error in blender_set_texture: {str(e)}")
             traceback.print_exc()
             return {"error": f"Failed to apply texture: {str(e)}"}
 
-    def get_polyhaven_status(self):
+    def blender_get_polyhaven_status(self):
         """Get the current status of PolyHaven integration"""
         enabled = bpy.context.scene.blendermcp_use_polyhaven
         if enabled:
@@ -1289,7 +1289,7 @@ class BlenderMCPServer:
         }
 
     #region Hyper3D
-    def get_hyper3d_status(self):
+    def blender_get_hyper3d_status(self):
         """Get the current status of Hyper3D Rodin integration"""
         enabled = bpy.context.scene.blendermcp_use_hyper3d
         if enabled:
@@ -1318,7 +1318,7 @@ class BlenderMCPServer:
                             3. Restart the connection to Claude"""
             }
 
-    def create_rodin_job(self, *args, **kwargs):
+    def blender_create_rodin_job(self, *args, **kwargs):
         match bpy.context.scene.blendermcp_hyper3d_mode:
             case "MAIN_SITE":
                 return self.create_rodin_job_main_site(*args, **kwargs)
@@ -1387,7 +1387,7 @@ class BlenderMCPServer:
         except Exception as e:
             return {"error": str(e)}
 
-    def poll_rodin_job_status(self, *args, **kwargs):
+    def blender_poll_rodin_job_status(self, *args, **kwargs):
         match bpy.context.scene.blendermcp_hyper3d_mode:
             case "MAIN_SITE":
                 return self.poll_rodin_job_status_main_site(*args, **kwargs)
@@ -1482,7 +1482,7 @@ class BlenderMCPServer:
 
         return mesh_obj
 
-    def import_generated_asset(self, *args, **kwargs):
+    def blender_import_generated_asset(self, *args, **kwargs):
         match bpy.context.scene.blendermcp_hyper3d_mode:
             case "MAIN_SITE":
                 return self.import_generated_asset_main_site(*args, **kwargs)
@@ -1614,7 +1614,7 @@ class BlenderMCPServer:
             return {"succeed": False, "error": str(e)}
     #endregion
 
-    def add_geometry_nodes(self, object_name, modifier_name=None):
+    def add_blender_geometry_nodes(self, object_name, modifier_name=None):
         """Add a Geometry Nodes modifier to an object"""
         try:
             # Get the object
@@ -1681,11 +1681,11 @@ class BlenderMCPServer:
             }
             
         except Exception as e:
-            print(f"Error in add_geometry_nodes: {str(e)}")
+            print(f"Error in add_blender_geometry_nodes: {str(e)}")
             traceback.print_exc()
             return {"error": str(e)}
     
-    def modify_geometry_nodes(self, object_name, modifier_name, node_operations=None):
+    def modify_blender_geometry_nodes(self, object_name, modifier_name, node_operations=None):
         """Modify a Geometry Nodes setup on an object"""
         try:
             # Get the object
@@ -1759,7 +1759,7 @@ class BlenderMCPServer:
             }
             
         except Exception as e:
-            print(f"Error in modify_geometry_nodes: {str(e)}")
+            print(f"Error in modify_blender_geometry_nodes: {str(e)}")
             traceback.print_exc()
             return {"error": str(e)}
     
@@ -1996,7 +1996,7 @@ class BlenderMCPServer:
         except Exception as e:
             return {"error": str(e)}
     
-    def get_geometry_nodes_info(self, object_name, modifier_name=None):
+    def get_blender_geometry_nodes_info(self, object_name, modifier_name=None):
         """Get information about Geometry Nodes modifiers on an object"""
         try:
             # Get the object
@@ -2052,7 +2052,7 @@ class BlenderMCPServer:
             }
             
         except Exception as e:
-            print(f"Error in get_geometry_nodes_info: {str(e)}")
+            print(f"Error in get_blender_geometry_nodes_info: {str(e)}")
             traceback.print_exc()
             return {"error": str(e)}
     
@@ -2138,7 +2138,7 @@ class BlenderMCPServer:
             print(f"Error getting node group info: {str(e)}")
             return {"error": str(e)}
     
-    def remove_geometry_nodes(self, object_name, modifier_name):
+    def remove_blender_geometry_nodes(self, object_name, modifier_name):
         """Remove a Geometry Nodes modifier from an object"""
         try:
             # Get the object
@@ -2166,7 +2166,7 @@ class BlenderMCPServer:
             }
             
         except Exception as e:
-            print(f"Error in remove_geometry_nodes: {str(e)}")
+            print(f"Error in remove_blender_geometry_nodes: {str(e)}")
             traceback.print_exc()
             return {"error": str(e)}
 # Blender UI Panel
